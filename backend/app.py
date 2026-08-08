@@ -291,7 +291,19 @@ def download_file(download_id):
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint."""
-    return jsonify({'status': 'ok', 'message': 'YouTube Downloader API is running'})
+    cookie_status = 'not found'
+    cookie_lines = 0
+    if COOKIES_FILE and os.path.exists(COOKIES_FILE):
+        with open(COOKIES_FILE, 'r') as f:
+            lines = f.readlines()
+            cookie_lines = len(lines)
+            cookie_status = f'found ({cookie_lines} lines)'
+    return jsonify({
+        'status': 'ok',
+        'message': 'YouTube Downloader API is running',
+        'cookies': cookie_status,
+        'cookies_path': COOKIES_FILE,
+    })
 
 
 # Setup cookies on startup
