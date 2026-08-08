@@ -226,6 +226,24 @@ def download_progress(download_id):
                     headers={'Cache-Control': 'no-cache', 'Access-Control-Allow-Origin': '*'})
 
 
+@app.route('/api/download/progress-poll/<download_id>', methods=['GET'])
+def download_progress_poll(download_id):
+    """Simple polling endpoint for download progress."""
+    if download_id not in downloads:
+        return jsonify({'error': 'Invalid download ID', 'status': 'error'}), 404
+
+    info = downloads.get(download_id, {})
+    data = {
+        'progress': info.get('progress', 0),
+        'status': info.get('status', 'unknown'),
+    }
+
+    if info.get('status') == 'error':
+        data['error'] = info.get('error', 'Unknown error')
+
+    return jsonify(data)
+
+
 @app.route('/api/download/file/<download_id>', methods=['GET'])
 def download_file(download_id):
     """Serve the downloaded file."""

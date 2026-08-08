@@ -116,29 +116,28 @@ export default function Home() {
 
       const downloadId = startData.download_id;
 
-      // Step 2: Listen to real progress via SSE
+      // Step 2: Poll for real progress (more reliable than SSE cross-origin)
       await new Promise((resolve, reject) => {
-        const eventSource = new EventSource(
-          `${BACKEND_URL}/api/download/progress/${downloadId}`
-        );
+        const pollProgress = async () => {
+          try {
+            const res = await fetch(
+              `${BACKEND_URL}/api/download/progress-poll/${downloadId}`
+            );
+            const data = await res.json();
+            setDownloadProgress(data.progress);
 
-        eventSource.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          setDownloadProgress(data.progress);
-
-          if (data.status === 'done') {
-            eventSource.close();
-            resolve(true);
-          } else if (data.status === 'error') {
-            eventSource.close();
-            reject(new Error(data.error || 'Download failed'));
+            if (data.status === 'done') {
+              resolve(true);
+            } else if (data.status === 'error') {
+              reject(new Error(data.error || 'Download failed'));
+            } else {
+              setTimeout(pollProgress, 1000);
+            }
+          } catch (err) {
+            reject(new Error('Connection lost. Please try again.'));
           }
         };
-
-        eventSource.onerror = () => {
-          eventSource.close();
-          reject(new Error('Connection lost. Please try again.'));
-        };
+        pollProgress();
       });
 
       // Small delay to let server free up
