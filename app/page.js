@@ -14,7 +14,6 @@ export default function Home() {
   const [status, setStatus] = useState('');
 
   const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
-  const COBALT_API = 'https://cobaltapi.kittycat.boo';
 
   const extractVideoId = (inputUrl) => {
     const patterns = [
@@ -94,18 +93,16 @@ export default function Home() {
     setStatus('');
 
     try {
-      // Call Cobalt API directly
+      // Call Cobalt API via our proxy
       setDownloadProgress(10);
-      const cobaltRes = await fetch(`${COBALT_API}/`, {
+      const cobaltRes = await fetch('/api/cobalt', {
         method: 'POST',
         headers: {
-          'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           url: url.trim(),
           videoQuality: selectedQuality,
-          youtubeVideoCodec: 'h264',
         }),
       });
 
