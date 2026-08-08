@@ -36,6 +36,7 @@ def get_ydl_opts(skip_download=True):
         'quiet': True,
         'no_warnings': True,
         'skip_download': skip_download,
+        'remote_components': ['ejs:github'],
     }
     if os.path.exists(COOKIES_FILE):
         opts['cookiefile'] = COOKIES_FILE
