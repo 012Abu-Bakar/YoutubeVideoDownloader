@@ -50,12 +50,14 @@ def get_qualities():
             if height and f.get('vcodec') != 'none':
                 label = f'{height}p'
                 format_id = str(height)
-                if format_id not in quality_map or f.get('filesize', 0) > quality_map[format_id].get('filesize', 0):
+                filesize = f.get('filesize') or f.get('filesize_approx') or 0
+                existing_size = quality_map.get(format_id, {}).get('filesize', 0) or 0
+                if format_id not in quality_map or filesize > existing_size:
                     quality_map[format_id] = {
                         'format_id': format_id,
                         'label': label,
                         'height': height,
-                        'filesize': f.get('filesize', 0),
+                        'filesize': filesize,
                     }
 
         # Sort by height descending
