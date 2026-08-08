@@ -24,24 +24,27 @@ for path in ['/etc/secrets/cookies.txt', '/tmp/youtube_cookies.txt']:
 
 
 def setup_cookies():
-    """Write cookies from environment variable to a file, or use secret file."""
+    """Copy cookies from secret file or env variable to a writable location."""
     global COOKIES_FILE
 
-    # Check if secret file exists (Render secret files)
+    writable_path = '/tmp/youtube_cookies.txt'
+
+    # Check if secret file exists (Render secret files - read only)
     if os.path.exists('/etc/secrets/cookies.txt'):
-        COOKIES_FILE = '/etc/secrets/cookies.txt'
-        print(f"[INFO] Using secret file: {COOKIES_FILE}")
+        # Copy to writable location (yt-dlp needs to write to cookie file)
+        shutil.copy2('/etc/secrets/cookies.txt', writable_path)
+        COOKIES_FILE = writable_path
+        print(f"[INFO] Cookies copied from secret file to {writable_path}")
         return
 
     # Fallback to environment variable
     cookies_content = os.environ.get('YOUTUBE_COOKIES', '')
     if cookies_content:
-        # Replace literal \n with actual newlines
         cookies_content = cookies_content.replace('\\n', '\n')
-        with open('/tmp/youtube_cookies.txt', 'w') as f:
+        with open(writable_path, 'w') as f:
             f.write(cookies_content)
-        COOKIES_FILE = '/tmp/youtube_cookies.txt'
-        print(f"[INFO] Cookies written from env to {COOKIES_FILE}")
+        COOKIES_FILE = writable_path
+        print(f"[INFO] Cookies written from env to {writable_path}")
     else:
         print("[WARN] No cookies found")
 
