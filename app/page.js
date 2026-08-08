@@ -14,6 +14,7 @@ export default function Home() {
   const [status, setStatus] = useState('');
 
   const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+  const COBALT_API = 'https://cobaltapi.kittycat.boo';
 
   const extractVideoId = (inputUrl) => {
     const patterns = [
@@ -67,27 +68,16 @@ export default function Home() {
         thumbnail: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
       });
 
-      // Fetch available qualities from backend
-      const qualityRes = await fetch(`${BACKEND_URL}/api/qualities?url=${encodeURIComponent(url.trim())}`);
-      const qualityData = await qualityRes.json();
-
-      if (qualityRes.ok && qualityData.qualities) {
-        setQualities(qualityData.qualities);
-        if (qualityData.qualities.length > 0) {
-          setSelectedQuality(qualityData.qualities[0].format_id);
-        }
-      } else {
-        // Fallback qualities if backend isn't ready
-        setQualities([
-          { format_id: 'best', label: 'Best' },
-          { format_id: '720', label: '720p' },
-          { format_id: '480', label: '480p' },
-          { format_id: '360', label: '360p' },
-          { format_id: '240', label: '240p' },
-          { format_id: '144', label: '144p' },
-        ]);
-        setSelectedQuality('best');
-      }
+      // Fixed quality options (Cobalt supports these)
+      setQualities([
+        { format_id: '1080', label: '1080p' },
+        { format_id: '720', label: '720p' },
+        { format_id: '480', label: '480p' },
+        { format_id: '360', label: '360p' },
+        { format_id: '240', label: '240p' },
+        { format_id: '144', label: '144p' },
+      ]);
+      setSelectedQuality('720');
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.');
     } finally {
@@ -104,75 +94,91 @@ export default function Home() {
     setStatus('');
 
     try {
-      // Step 1: Start the download on backend
-      const startRes = await fetch(
-        `${BACKEND_URL}/api/download/start?url=${encodeURIComponent(url.trim())}&quality=${selectedQuality}`
-      );
-      const startData = await startRes.json();
-
-      if (!startRes.ok) {
-        throw new Error(startData.error || 'Failed to start download');
-      }
-
-      const downloadId = startData.download_id;
-
-      // Step 2: Poll for real progress (more reliable than SSE cross-origin)
-      await new Promise((resolve, reject) => {
-        const pollProgress = async () => {
-          try {
-            const res = await fetch(
-              `${BACKEND_URL}/api/download/progress-poll/${downloadId}`
-            );
-            const data = await res.json();
-            setDownloadProgress(data.progress);
-
-            if (data.status === 'done') {
-              resolve(true);
-            } else if (data.status === 'error') {
-              reject(new Error(data.error || 'Download failed'));
-            } else {
-              setTimeout(pollProgress, 1000);
-            }
-          } catch (err) {
-            reject(new Error('Connection lost. Please try again.'));
-          }
-        };
-        pollProgress();
+      // Call Cobalt API directly
+      setDownloadProgress(10);
+      const cobaltRes = await fetch(`${COBALT_API}/`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: url.trim(),
+          videoQuality: selectedQuality,
+          youtubeVideoCodec: 'h264',
+        }),
       });
 
-      // Small delay to let server free up
-      await new Promise(r => setTimeout(r, 300));
+      const cobaltData = await cobaltRes.json();
+      setDownloadProgress(30);
 
-      // Step 3: Fetch the actual file
-      const fileRes = await fetch(`${BACKEND_URL}/api/download/file/${downloadId}`);
-
-      if (!fileRes.ok) {
-        throw new Error('Failed to fetch file');
+      if (cobaltData.status === 'error') {
+        throw new Error(cobaltData.error?.code || 'Download failed. Try a different video.');
       }
 
-      const blob = await fileRes.blob();
-      const contentDisposition = fileRes.headers.get('Content-Disposition');
-      let filename = `${videoInfo.title || 'video'}.mp4`;
+      if (cobaltData.status === 'tunnel' || cobaltData.status === 'redirect') {
+        const downloadUrl = cobaltData.url;
+        const filename = cobaltData.filename || `${videoInfo.title}.mp4`;
 
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename="?(.+?)"?$/);
-        if (match) filename = decodeURIComponent(match[1]);
+        // Fetch the file with progress
+        const fileRes = await fetch(downloadUrl);
+
+        if (!fileRes.ok) {
+          throw new Error('Failed to download file');
+        }
+
+        const contentLength = fileRes.headers.get('Content-Length') || fileRes.headers.get('Estimated-Content-Length');
+        const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+        const reader = fileRes.body.getReader();
+        const chunks = [];
+        let received = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          chunks.push(value);
+          received += value.length;
+
+          if (total > 0) {
+            const percent = 30 + Math.round((received / total) * 65);
+            setDownloadProgress(Math.min(95, percent));
+          } else {
+            const mb = (received / (1024 * 1024)).toFixed(1);
+            setStatus(`Downloading... ${mb} MB`);
+            setDownloadProgress(Math.min(90, 30 + Math.round(received / (received + 500000) * 60)));
+          }
+        }
+
+        setDownloadProgress(100);
+
+        // Save file
+        const blob = new Blob(chunks);
+        const blobUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(blobUrl);
+
+        setStatus('Download complete!');
+      } else if (cobaltData.status === 'picker') {
+        // Multiple options - take the first video
+        const firstItem = cobaltData.picker.find(p => p.type === 'video') || cobaltData.picker[0];
+        window.open(firstItem.url, '_blank');
+        setStatus('Download started!');
+        setDownloadProgress(100);
       }
-
-      // Trigger browser download
-      const blobUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(blobUrl);
-
-      setStatus('Download complete! File saved.');
-      setDownloadProgress(0);
     } catch (err) {
-      setError(err.message || 'Download failed. Please try again.');
+      const msg = err.message || 'Download failed.';
+      if (msg.includes('youtube.login')) {
+        setError('This video requires YouTube login. Try a different video.');
+      } else {
+        setError(msg);
+      }
     } finally {
       setDownloading(false);
     }
