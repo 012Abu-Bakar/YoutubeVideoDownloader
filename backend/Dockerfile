@@ -16,3 +16,4 @@ COPY . .
 EXPOSE 5000
 
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "300", "--workers", "1", "--threads", "8", "app:app"]
+# Deploy trigger Sat Aug  8 08:23:17 PM IST 2026
