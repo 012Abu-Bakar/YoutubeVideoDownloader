@@ -50,14 +50,12 @@ def get_qualities():
             if height and f.get('vcodec') != 'none':
                 label = f'{height}p'
                 format_id = str(height)
-                filesize = f.get('filesize') or f.get('filesize_approx') or 0
-                existing_size = quality_map.get(format_id, {}).get('filesize', 0) or 0
-                if format_id not in quality_map or filesize > existing_size:
+                # Just keep one entry per height, no size comparison needed
+                if format_id not in quality_map:
                     quality_map[format_id] = {
                         'format_id': format_id,
                         'label': label,
                         'height': height,
-                        'filesize': filesize,
                     }
 
         # Sort by height descending
@@ -67,7 +65,7 @@ def get_qualities():
         for h in [240, 144]:
             fid = str(h)
             if fid not in quality_map:
-                qualities.append({'format_id': fid, 'label': f'{h}p', 'height': h, 'filesize': 0})
+                qualities.append({'format_id': fid, 'label': f'{h}p', 'height': h})
 
         # Re-sort after adding missing ones
         qualities = sorted(qualities, key=lambda x: x.get('height', 9999), reverse=True)
@@ -78,9 +76,8 @@ def get_qualities():
         # Add audio only option
         qualities.append({'format_id': 'audio', 'label': 'Audio Only'})
 
-        # Remove filesize and height from response
+        # Remove height from response
         for q in qualities:
-            q.pop('filesize', None)
             q.pop('height', None)
 
         return jsonify({
