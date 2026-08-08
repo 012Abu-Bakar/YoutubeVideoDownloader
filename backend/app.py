@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, Response, send_file
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 import yt_dlp
 import re
@@ -15,15 +15,36 @@ CORS(app, expose_headers=['Content-Length', 'Content-Disposition'])
 # Store download progress and file paths
 downloads = {}
 
+# Cookie file path
+COOKIES_FILE = '/tmp/youtube_cookies.txt'
+
+
+def setup_cookies():
+    """Write cookies from environment variable to a file."""
+    cookies_content = os.environ.get('YOUTUBE_COOKIES', '')
+    if cookies_content:
+        with open(COOKIES_FILE, 'w') as f:
+            f.write(cookies_content)
+        print(f"[INFO] Cookies file written to {COOKIES_FILE}")
+    else:
+        print("[WARN] No YOUTUBE_COOKIES environment variable found")
+
+
+def get_ydl_opts(skip_download=True):
+    """Get common yt-dlp options with cookies."""
+    opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'skip_download': skip_download,
+    }
+    if os.path.exists(COOKIES_FILE):
+        opts['cookiefile'] = COOKIES_FILE
+    return opts
+
 
 def get_video_info(url):
     """Fetch video info and available formats using yt-dlp."""
-    ydl_opts = {
-        'quiet': True,
-        'no_warnings': True,
-        'skip_download': True,
-        'remote_components': ['ejs:github'],
-    }
+    ydl_opts = get_ydl_opts(skip_download=True)
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
@@ -42,7 +63,7 @@ def get_qualities():
         info = get_video_info(url)
         formats = info.get('formats', [])
 
-        # Extract unique resolutions with video+audio or just video
+        # Extract unique resolutions with video
         quality_map = {}
 
         for f in formats:
@@ -50,7 +71,6 @@ def get_qualities():
             if height and f.get('vcodec') != 'none':
                 label = f'{height}p'
                 format_id = str(height)
-                # Just keep one entry per height, no size comparison needed
                 if format_id not in quality_map:
                     quality_map[format_id] = {
                         'format_id': format_id,
@@ -61,13 +81,13 @@ def get_qualities():
         # Sort by height descending
         qualities = sorted(quality_map.values(), key=lambda x: x['height'], reverse=True)
 
-        # Ensure 144p and 240p are always present as options
+        # Ensure 144p and 240p are always present
         for h in [240, 144]:
             fid = str(h)
             if fid not in quality_map:
                 qualities.append({'format_id': fid, 'label': f'{h}p', 'height': h})
 
-        # Re-sort after adding missing ones
+        # Re-sort
         qualities = sorted(qualities, key=lambda x: x.get('height', 9999), reverse=True)
 
         # Add "best" option at the top
@@ -91,7 +111,7 @@ def get_qualities():
 
 @app.route('/api/download/start', methods=['GET'])
 def start_download():
-    """Start download and stream real progress via SSE."""
+    """Start download and return download ID for progress tracking."""
     url = request.args.get('url')
     quality = request.args.get('quality', 'best')
 
@@ -122,7 +142,6 @@ def start_download():
         temp_dir = tempfile.mkdtemp()
         output_path = os.path.join(temp_dir, f'video.{ext}')
 
-        total_streams = [0]  # Track how many streams we're downloading
         completed_streams = [0]
 
         def progress_hook(d):
@@ -130,7 +149,6 @@ def start_download():
                 total = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
                 downloaded = d.get('downloaded_bytes', 0)
                 if total > 0:
-                    # If we have 2 streams (video+audio), each counts for 45%
                     stream_percent = (downloaded / total) * 45
                     base = completed_streams[0] * 45
                     percent = min(90, round(base + stream_percent))
@@ -147,16 +165,14 @@ def start_download():
             elif d['status'] == 'finished':
                 downloads[download_id]['progress'] = 98
 
-        ydl_opts = {
+        ydl_opts = get_ydl_opts(skip_download=False)
+        ydl_opts.update({
             'format': format_str,
             'outtmpl': output_path,
             'merge_output_format': ext,
-            'quiet': True,
-            'no_warnings': True,
-            'remote_components': ['ejs:github'],
             'progress_hooks': [progress_hook],
             'postprocessor_hooks': [postprocessor_hook],
-        }
+        })
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -192,37 +208,6 @@ def start_download():
     thread.start()
 
     return jsonify({'download_id': download_id})
-
-
-@app.route('/api/download/progress/<download_id>', methods=['GET'])
-def download_progress(download_id):
-    """Stream real-time progress via Server-Sent Events."""
-    if download_id not in downloads:
-        return jsonify({'error': 'Invalid download ID'}), 404
-
-    def generate():
-        import time
-        while True:
-            info = downloads.get(download_id, {})
-            data = {
-                'progress': info.get('progress', 0),
-                'status': info.get('status', 'unknown'),
-            }
-
-            if info.get('status') == 'error':
-                data['error'] = info.get('error', 'Unknown error')
-                yield f"data: {json.dumps(data)}\n\n"
-                break
-            elif info.get('status') == 'done':
-                yield f"data: {json.dumps(data)}\n\n"
-                break
-            else:
-                yield f"data: {json.dumps(data)}\n\n"
-
-            time.sleep(0.5)
-
-    return Response(generate(), content_type='text/event-stream',
-                    headers={'Cache-Control': 'no-cache', 'Access-Control-Allow-Origin': '*'})
 
 
 @app.route('/api/download/progress-poll/<download_id>', methods=['GET'])
@@ -267,7 +252,6 @@ def download_file(download_id):
                         break
                     yield chunk
         finally:
-            # Cleanup
             if temp_dir:
                 shutil.rmtree(temp_dir, ignore_errors=True)
             downloads.pop(download_id, None)
@@ -289,6 +273,9 @@ def health_check():
     """Health check endpoint."""
     return jsonify({'status': 'ok', 'message': 'YouTube Downloader API is running'})
 
+
+# Setup cookies on startup
+setup_cookies()
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
