@@ -15,19 +15,35 @@ CORS(app, expose_headers=['Content-Length', 'Content-Disposition'])
 # Store download progress and file paths
 downloads = {}
 
-# Cookie file path
-COOKIES_FILE = '/tmp/youtube_cookies.txt'
+# Cookie file path - check multiple locations
+COOKIES_FILE = None
+for path in ['/etc/secrets/cookies.txt', '/tmp/youtube_cookies.txt']:
+    if os.path.exists(path):
+        COOKIES_FILE = path
+        break
 
 
 def setup_cookies():
-    """Write cookies from environment variable to a file."""
+    """Write cookies from environment variable to a file, or use secret file."""
+    global COOKIES_FILE
+
+    # Check if secret file exists (Render secret files)
+    if os.path.exists('/etc/secrets/cookies.txt'):
+        COOKIES_FILE = '/etc/secrets/cookies.txt'
+        print(f"[INFO] Using secret file: {COOKIES_FILE}")
+        return
+
+    # Fallback to environment variable
     cookies_content = os.environ.get('YOUTUBE_COOKIES', '')
     if cookies_content:
-        with open(COOKIES_FILE, 'w') as f:
+        # Replace literal \n with actual newlines
+        cookies_content = cookies_content.replace('\\n', '\n')
+        with open('/tmp/youtube_cookies.txt', 'w') as f:
             f.write(cookies_content)
-        print(f"[INFO] Cookies file written to {COOKIES_FILE}")
+        COOKIES_FILE = '/tmp/youtube_cookies.txt'
+        print(f"[INFO] Cookies written from env to {COOKIES_FILE}")
     else:
-        print("[WARN] No YOUTUBE_COOKIES environment variable found")
+        print("[WARN] No cookies found")
 
 
 def get_ydl_opts(skip_download=True):
