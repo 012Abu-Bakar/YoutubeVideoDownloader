@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: youtube-downloader-api
+    runtime: docker
+    repo: https://github.com/YOUR_USERNAME/YoutubeVideoDownloader
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PORT
+        value: 5000
+    healthCheckPath: /health
+    plan: free
