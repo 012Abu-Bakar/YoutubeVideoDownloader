@@ -69,7 +69,7 @@ export default function Home() {
 
       // Fetch available qualities from backend
       try {
-        const qualityRes = await fetch(`${BACKEND_URL}/api/qualities?url=${encodeURIComponent(url.trim())}`);
+        const qualityRes = await fetch(`/api/qualities?url=${encodeURIComponent(url.trim())}`);
         const qualityData = await qualityRes.json();
 
         if (qualityRes.ok && qualityData.qualities) {
@@ -110,7 +110,7 @@ export default function Home() {
     try {
       // Step 1: Start the download on backend
       const startRes = await fetch(
-        `${BACKEND_URL}/api/download/start?url=${encodeURIComponent(url.trim())}&quality=${selectedQuality}`
+        `/api/download/start?url=${encodeURIComponent(url.trim())}&quality=${selectedQuality}`
       );
       const startData = await startRes.json();
 
@@ -125,7 +125,7 @@ export default function Home() {
         const pollProgress = async () => {
           try {
             const res = await fetch(
-              `${BACKEND_URL}/api/download/progress-poll/${downloadId}`
+              `/api/download/progress/${downloadId}`
             );
             const data = await res.json();
             setDownloadProgress(data.progress);
@@ -147,7 +147,7 @@ export default function Home() {
       await new Promise(r => setTimeout(r, 300));
 
       // Step 3: Fetch the actual file
-      const fileRes = await fetch(`${BACKEND_URL}/api/download/file/${downloadId}`);
+      const fileRes = await fetch(`/api/download/file/${downloadId}`);
 
       if (!fileRes.ok) {
         throw new Error('Failed to fetch file');
