@@ -13,7 +13,7 @@ export default function Home() {
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
 
-  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://80.225.193.195:5000';
 
   const extractVideoId = (inputUrl) => {
     const patterns = [
