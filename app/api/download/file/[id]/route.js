@@ -7,6 +7,7 @@ export async function GET(request, { params }) {
 
   try {
     const res = await fetch(`${BACKEND_URL}/api/download/file/${id}`, {
+      headers: {"ngrok-skip-browser-warning": "true"},
       signal: AbortSignal.timeout(300000), // 5 min timeout for large files
     });
 

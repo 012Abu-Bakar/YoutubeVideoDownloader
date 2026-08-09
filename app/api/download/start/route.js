@@ -14,7 +14,8 @@ export async function GET(request) {
   try {
     const res = await fetch(
       `${BACKEND_URL}/api/download/start?url=${encodeURIComponent(url)}&quality=${quality}`,
-      { signal: AbortSignal.timeout(30000) }
+      { headers: {"ngrok-skip-browser-warning": "true"},
+      signal: AbortSignal.timeout(30000) }
     );
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });

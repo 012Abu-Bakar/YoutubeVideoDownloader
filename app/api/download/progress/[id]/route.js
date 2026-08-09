@@ -7,6 +7,7 @@ export async function GET(request, { params }) {
 
   try {
     const res = await fetch(`${BACKEND_URL}/api/download/progress-poll/${id}`, {
+      headers: {"ngrok-skip-browser-warning": "true"},
       signal: AbortSignal.timeout(10000),
     });
     const data = await res.json();

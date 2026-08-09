@@ -12,6 +12,7 @@ export async function GET(request) {
 
   try {
     const res = await fetch(`${BACKEND_URL}/api/qualities?url=${encodeURIComponent(url)}`, {
+      headers: {"ngrok-skip-browser-warning": "true"},
       signal: AbortSignal.timeout(30000),
     });
     const data = await res.json();
