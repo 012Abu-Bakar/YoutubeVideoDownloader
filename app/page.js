@@ -13,7 +13,7 @@ export default function Home() {
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
 
-  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://80.225.193.195:5000';
+  // All API calls go through our own Next.js proxy routes
 
   const extractVideoId = (inputUrl) => {
     const patterns = [
