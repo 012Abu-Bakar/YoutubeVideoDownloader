@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://80.225.193.195:5000';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://scheme-majesty-cavalier.ngrok-free.dev';
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);

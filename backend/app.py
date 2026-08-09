@@ -17,7 +17,11 @@ downloads = {}
 
 # Cookie file path - check multiple locations
 COOKIES_FILE = None
-for path in ['/etc/secrets/cookies.txt', '/tmp/youtube_cookies.txt']:
+for path in [
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), 'cookies.txt'),
+    '/etc/secrets/cookies.txt',
+    '/tmp/youtube_cookies.txt',
+]:
     if os.path.exists(path):
         COOKIES_FILE = path
         break
@@ -57,7 +61,7 @@ def get_ydl_opts(skip_download=True):
         'skip_download': skip_download,
         'remote_components': ['ejs:github'],
     }
-    if os.path.exists(COOKIES_FILE):
+    if COOKIES_FILE and os.path.exists(COOKIES_FILE):
         opts['cookiefile'] = COOKIES_FILE
     return opts
 
